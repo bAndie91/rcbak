@@ -1,0 +1,316 @@
+#!/bin/bash
+
+set -e
+trap exception ERR INT
+
+declare -a obj
+declare -a excludes
+
+
+err()
+{
+	local code=1
+	if [ "$1" -gt 0 ] 2>/dev/null
+	then
+		code=$1
+		shift
+	fi
+	say "$@"
+	exit $code
+}
+say()
+{
+	echo "$@" >&2
+}
+save_to()
+{
+  if [ -n "$rcpt" ]
+  then
+	# encrypting
+	gpg -se -r "$rcpt" -o "$1" --no-tty --passphrase-fd 3 --yes 3<<<"$passphrase"
+  else
+	cat >"$1"
+  fi
+}
+exception()
+{
+	if [ -n "$dat_file" -a -e "$dat_file" ]
+	then
+		mv -v "$dat_file" "$dat_file.fail"
+	fi
+	if [ -n "$nts_file" -a -e "$nts_file" ]
+	then
+		mv -v "$nts_file" "$nts_file.fail"
+	fi
+	if [ "$meta_file_saved" = 1 ]
+	then
+		if [ -e increment.snar ]
+		then
+			mv -v increment.snar increment.snar.fail
+		fi
+		mv -v increment.snar.old increment.snar
+	fi
+	rm .rcbak.lk
+}
+
+
+if [ $# -gt 0 ]
+then
+	err "Usage: rcbak"
+fi
+
+
+dat_file=
+nts_file=
+meta_file_saved=
+
+
+# base directory (file may contain $variables)
+if [ -e .rcbak.ba ]
+then
+	base_dir=$(head -n 1 .rcbak.ba)
+	if [ "${base_dir:0:2}" = '~/' ]
+	then
+		base_dir=$HOME/${base_dir:2}
+	fi
+else
+	err "Missing file: .rcbak.ba"
+fi
+
+# load names of included and excluded files
+IFS_=$IFS
+IFS=$'\n'
+
+obj=(.)
+if [ -e .rcbak.ls ]
+then
+	obj=(`cat .rcbak.ls`)
+fi
+
+excludes=()
+if [ -e .rcbak.ex ]
+then
+	for exclude in `cat .rcbak.ex`
+	do
+		excludes+=("--exclude=$exclude")
+	done
+fi
+
+archiver=gzip
+if [ -e .rcbak.ar ]
+then
+	a=`cat .rcbak.ar`
+	case "$a" in
+	Z|compress)
+		archiver=compress;;
+	gz|gzip)
+		archiver=gzip;;
+	bzip|bzip2|bz2)
+		archiver=bzip2;;
+	xz)
+		archiver=xz;;
+	*)
+		err "Unsupported archiver: $a"
+		;;
+	esac
+fi
+
+case "$archiver" in
+	compress)
+		ext=tar.Z
+		compflag=Z
+		;;
+	gzip)
+		ext=tar.gz
+		compflag=z
+		;;
+	bzip2)
+		ext=tar.bz2
+		compflag=j
+		;;
+	xz)
+		ext=tar.xz
+		compflag=J
+		;;
+esac
+
+
+if [ -e .rcbak.su ]
+then
+	sudo="sudo -u $(head -n 1 .rcbak.su)"
+else
+	sudo=
+fi
+
+if [ -e .rcbak.to ]
+then
+	rcpt=`head -n 1 .rcbak.to`
+	read -e -s -p "Enter GPG passphrase for default key: " passphrase
+	# test passphrase
+	echo TEST | save_to /dev/null
+else
+	rcpt=
+fi
+
+IFS=$IFS_
+
+
+exec 3>>.rcbak.lk
+flock -x -n 3
+if [ $? != 0 ]
+then
+	err "Locked."
+fi
+
+
+timestamp=`date +%Y-%m-%d_%H%M`
+if [ -e increment.snar ]
+then
+	dat_file=$timestamp.$ext
+else
+	dat_file=${timestamp}_init.$ext
+fi
+nts_file=`readlink -f -n "$timestamp.nts"`
+if [ -n "$rcpt" ]
+then
+	dat_file="$dat_file.gpg"
+	nts_file="$nts_file.gpg"
+fi
+
+
+pwd=`pwd`
+# save file list
+say "Generate null-terminated-string list: $nts_file ..."
+cd "$base_dir"
+$sudo find "${obj[@]}" -print0 | save_to "$nts_file"
+
+
+# do the backup
+say "Generate archive: $dat_file ..."
+cd "$pwd"
+
+if [ -e increment.snar ]
+then
+	cp -vfa increment.snar increment.snar.old
+	meta_file_saved=1
+fi
+
+$sudo tar cv${compflag}f - --force-local -C "$base_dir" "${obj[@]}" -g increment.snar "${excludes[@]}" --exclude-tag=.noBackup --exclude-tag=.rcbak.no | save_to "$dat_file"
+declare -a backup_status=(${PIPESTATUS[@]})
+# let main exit code be the highest exit code of pipeline
+exitcode=${backup_status[0]}
+for n in "${backup_status[@]}"
+do
+	if [ $n -gt $exitcode ]
+	then
+		exitcode=$n
+	fi
+done
+
+if [ $exitcode != 0 ]
+then
+	exception
+	exit $exitcode
+fi
+
+
+# post-run script
+if [ -e .rcbak.pr ]
+then
+	source .rcbak.pr
+	exitcode=$?
+fi
+
+rm .rcbak.lk
+exit $exitcode
+
+
+
+true <<EOF
+
+=pod
+
+=head1 NAME
+
+rcbak - Incremental backup mechanism based on tar,
+configured by dotfiles and supporting gpg-encryption
+
+=head1 DESCRIPTION
+
+Navigate to a directory containing required F<.rcbak.*> files, 
+then call rcbak(1).
+First time the programm generates an initial tar(1) archive
+and a meta-file named F<increment.snar>.
+Subsequent run of rcbak(1) makes a timestamped archive file: F<YYYY-mm-dd_HHMM.tar.gz>.
+If you already have archives, but want to do a full backup as initially,
+just rename F<increment.snar>.
+A list of files to be archived is also generated, 
+it is in NTS format (null terminated strings of file paths relative to base directory), F<YYYY-mm-dd_HHMM.nts>.
+It gives the chance to restore only those files from the incremental archives, 
+which were exist on the given time,
+not the deleted ones. 
+File listing preceeds creating the archive, 
+so NTS list and archived files may be inconsistent,
+depending on usage of files and folders.
+However even tar(1) itself is not atomic.
+Consider using filesystem snapshots.
+On every incremental backup it saves F<increment.snar> to F<increment.snar.old>,
+so you can rollback manually to the previous state after a failed backup process.
+
+=head1 EXAMPLE
+
+ cd backups/personal
+ echo '$HOME/documents' > .rcbak.ba
+ rcbak
+
+=head1 FILES
+
+=head2 F<.rcbak.ba> (required)
+
+Contains base directory of files and folders to be archived.
+Tilde (C<~>) substituted to HOME directory.
+
+=head2 F<.rcbak.ls>
+
+List of files (separated by newline) within the base directory to be archived.
+Default is the whole folder, if F<.rcbak.ls> is missing.
+
+=head2 F<.rcbak.ex>
+
+List of files and patterns (separated by newline) to be excluded from the archive. Patterns are recognized by tar(1), see option C<--exclude>.
+
+=head2 F<.rcbak.ar>
+
+Archiver compressor name. One of these: compress(1), gzip(1), bzip2(1), xz(1).
+
+=head2 F<.noBackup>, F<.rcbak.no>
+
+Skip entire directory containing such a file. See tar(1) option C<--exclude-tag>.
+
+=head2 F<.rcbak.su>
+
+Contains a username in 1st line. Programm reads files in name of this user using sudo(1). Write operations are not done by this user, so archive file created by the user started rcbak.
+
+=head2 F<.rcbak.to>
+
+Encrypt resulting archive for the named GPG user and signed by the default GPG key. See gpg(1) option C<--recipient>.
+
+=head2 F<.rcbak.pr>
+
+Post-run script. Includes this file in the main namespace of rcbak(1) and executes it, if exists.
+
+=head2 F<.rcbak.lk>
+
+Lock file.
+
+=head2 F<increment.snar>
+
+Meta file of incremented backup. See tar(1) option C<--listed-incremental>.
+
+=head2 F<increment.snar.old>
+
+A copy of F<increment.snar> made before overwritten. This makes user able to restore the previous state of backup archives, if something goes wrong.
+
+=cut
+
+EOF
