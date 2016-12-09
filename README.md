@@ -28,7 +28,7 @@ so you can rollback manually to the previous state after a failed backup process
 # EXAMPLE
 
     cd backups/personal
-    echo '$HOME/documents' > .rcbak.ba
+    echo '~/documents' > .rcbak.ba
     rcbak
 
 # FILES
@@ -78,3 +78,7 @@ Meta file of incremented backup. See tar(1) option `--listed-incremental`.
 ## `increment.snar.old`
 
 A copy of `increment.snar` made before overwritten. This makes user able to restore the previous state of backup archives, if something goes wrong.
+
+## `*.fail`
+
+Archives, NTS files, and meta file renamed after an unsuccessful call.

@@ -260,7 +260,7 @@ so you can rollback manually to the previous state after a failed backup process
 =head1 EXAMPLE
 
  cd backups/personal
- echo '$HOME/documents' > .rcbak.ba
+ echo '~/documents' > .rcbak.ba
  rcbak
 
 =head1 FILES
@@ -310,6 +310,10 @@ Meta file of incremented backup. See tar(1) option C<--listed-incremental>.
 =head2 F<increment.snar.old>
 
 A copy of F<increment.snar> made before overwritten. This makes user able to restore the previous state of backup archives, if something goes wrong.
+
+=head2 F<*.fail>
+
+Archives, NTS files, and meta file renamed after an unsuccessful call.
 
 =cut
 
