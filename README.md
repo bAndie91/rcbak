@@ -65,7 +65,8 @@ Encrypt resulting archive for the named GPG user and signed by the default GPG k
 
 ## `.rcbak.pr`
 
-Post-run script. Includes this file in the main namespace of rcbak(1) and executes it, if exists.
+Pre- and post-run script, running in the main namespace of rcbak(1), if exists.
+Strings "pre" or "post" passed in "$1".
 
 ## `.rcbak.lk`
 

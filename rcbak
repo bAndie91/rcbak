@@ -48,7 +48,10 @@ exception()
 		then
 			mv -v increment.snar increment.snar.fail
 		fi
-		mv -v increment.snar.old increment.snar
+		if [ -e increment.snar.old ]
+		then
+			mv -v increment.snar.old increment.snar
+		fi
 	fi
 	rm .rcbak.lk
 }
@@ -178,6 +181,13 @@ then
 fi
 
 
+# pre-run script
+if [ -e .rcbak.pr ]
+then
+	source ./.rcbak.pr pre
+fi
+
+
 pwd=`pwd`
 # save file list
 say "Generate null-terminated-string list: $nts_file ..."
@@ -192,10 +202,10 @@ cd "$pwd"
 if [ -e increment.snar ]
 then
 	cp -vfa increment.snar increment.snar.old
-	meta_file_saved=1
 fi
+meta_file_saved=1
 
-$sudo tar cv${compflag}f - --force-local -C "$base_dir" "${obj[@]}" -g increment.snar "${excludes[@]}" --exclude-tag=.noBackup --exclude-tag=.rcbak.no | save_to "$dat_file"
+$sudo tar c${compflag}f - --force-local -C "$base_dir" "${obj[@]}" -g increment.snar "${excludes[@]}" --exclude-tag=.noBackup --exclude-tag=.rcbak.no | save_to "$dat_file"
 declare -a backup_status=(${PIPESTATUS[@]})
 # let main exit code be the highest exit code of pipeline
 exitcode=${backup_status[0]}
@@ -217,7 +227,7 @@ fi
 # post-run script
 if [ -e .rcbak.pr ]
 then
-	source .rcbak.pr
+	source ./.rcbak.pr post
 	exitcode=$?
 fi
 
@@ -297,7 +307,8 @@ Encrypt resulting archive for the named GPG user and signed by the default GPG k
 
 =head2 F<.rcbak.pr>
 
-Post-run script. Includes this file in the main namespace of rcbak(1) and executes it, if exists.
+Pre- and post-run script, running in the main namespace of rcbak(1), if exists.
+Strings "pre" or "post" passed in "$1".
 
 =head2 F<.rcbak.lk>
 
