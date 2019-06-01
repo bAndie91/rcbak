@@ -2,11 +2,12 @@
 
 set -e
 set -o pipefail
-trap exception ERR INT
+trap Exception ERR INT
 
-declare -a obj
-declare -a excludes
-pwd=''
+declare -a Objects
+declare -a Excludes
+Cwd=''
+Recipient=''
 
 
 errx()
@@ -24,16 +25,16 @@ warnx()
 {
 	echo "$@" >&2
 }
-encrypt_write()
+EncryptWrite()
 {
-  gpg -se -r "$rcpt" -o "$1" --no-tty --passphrase-fd 3 --yes 3<<<"$passphrase"
+  gpg -se -r "$Recipient" -o "$1" --no-tty --passphrase-fd 3 --yes 3<<<"$Passphrase"
 }
-save_to()
+SaveTo()
 {
   local outfile=$1
   local tmpfile=$outfile.part
   
-  if [ -n "$rcpt" ]
+  if [ -n "$Recipient" ]
   then
 	# encrypting
 	encrypt_write "$tmpfile"
@@ -42,13 +43,13 @@ save_to()
   fi
   mv -f "$tmpfile" "$outfile"
 }
-exception()
+Exception()
 {
-	if [ -n "$pwd" ]
+	if [ -n "$Cwd" ]
 	then
-		cd "$pwd"
+		cd "$Cwd"
 	fi
-	if [ "$meta_file_saved" = 1 ]
+	if [ "$MetaFileSaved" = yes ]
 	then
 		if [ -e increment.snar ]
 		then
@@ -69,18 +70,18 @@ then
 fi
 
 
-dat_file=''
-nts_file=''
-meta_file_saved=''
+Archive=''
+NTSFile=''
+MetaFileSaved=''
 
 
 # base directory (file may contain $variables)
 if [ -e .rcbak.ba ]
 then
-	base_dir=$(head -n 1 .rcbak.ba)
-	if [ "${base_dir:0:2}" = '~/' ]
+	Basedir=$(head -n 1 .rcbak.ba)
+	if [ "${Basedir:0:2}" = '~/' ]
 	then
-		base_dir=$HOME/${base_dir:2}
+		Basedir=$HOME/${Basedir:2}
 	fi
 else
 	errx "Missing file: .rcbak.ba"
@@ -90,15 +91,15 @@ fi
 IFS_=$IFS
 IFS=$'\n'
 
-obj=(.)
+Objects=(.)
 if [ -e .rcbak.ls ]
 then
 	exec {fd}<.rcbak.ls
-	mapfile -u $fd obj
+	mapfile -u $fd Objects
 	unset fd
 fi
 
-excludes=()
+Excludes=()
 if [ -e .rcbak.ex ]
 then
 	declare -a excludes0=()
@@ -108,65 +109,64 @@ then
 	
 	for exclude in "${excludes0[@]}"
 	do
-		excludes+=("--exclude=$exclude")
+		Excludes+=("--exclude=$exclude")
 	done
-	unset excludes0
+	unset excludes0 exclude
 fi
 
-archiver=gzip
+Archiver=gzip
 if [ -e .rcbak.ar ]
 then
 	a=`cat .rcbak.ar`
 	case "$a" in
 	Z|compress)
-		archiver=compress;;
+		Archiver=compress;;
 	gz|gzip)
-		archiver=gzip;;
+		Archiver=gzip;;
 	bzip|bzip2|bz2)
-		archiver=bzip2;;
+		Archiver=bzip2;;
 	xz)
-		archiver=xz;;
+		Archiver=xz;;
 	*)
 		errx "Unsupported archiver: $a"
 		;;
 	esac
+	unset a
 fi
 
-case "$archiver" in
+case "$Archiver" in
 	compress)
-		ext=tar.Z
-		compflag=Z
+		Extension=tar.Z
+		CompressFlag=Z
 		;;
 	gzip)
-		ext=tar.gz
-		compflag=z
+		Extension=tar.gz
+		CompressFlag=z
 		;;
 	bzip2)
-		ext=tar.bz2
-		compflag=j
+		Extension=tar.bz2
+		CompressFlag=j
 		;;
 	xz)
-		ext=tar.xz
-		compflag=J
+		Extension=tar.xz
+		CompressFlag=J
 		;;
 esac
 
 
 if [ -e .rcbak.su ]
 then
-	sudo="sudo -u $(head -n 1 .rcbak.su)"
+	Wrapper="sudo -u $(head -n 1 .rcbak.su)"
 else
-	sudo=''
+	Wrapper=''
 fi
 
 if [ -e .rcbak.to ]
 then
-	rcpt=`head -n 1 .rcbak.to`
-	read -e -s -p "Enter GPG passphrase for default key: " passphrase
+	Recipient=`head -n 1 .rcbak.to`
+	read -e -s -p "Enter GPG passphrase for default key: " Passphrase
 	# test passphrase
-	echo TEST | encrypt_write /dev/null
-else
-	rcpt=''
+	echo TEST | EncryptWrite /dev/null
 fi
 
 IFS=$IFS_
@@ -179,18 +179,18 @@ then
 fi
 
 
-timestamp=`date +%Y-%m-%d_%H%M`
+Timestamp=`date +%Y-%m-%d_%H%M`
 if [ -e increment.snar ]
 then
-	dat_file=$timestamp.$ext
+	Archive=$Timestamp.$Extension
 else
-	dat_file=${timestamp}_init.$ext
+	Archive=${Timestamp}_init.$Extension
 fi
-nts_file=`readlink -f -n "$timestamp.nts"`
-if [ -n "$rcpt" ]
+NTSFile=`readlink -f -n "$Timestamp.nts"`
+if [ -n "$Recipient" ]
 then
-	dat_file="$dat_file.gpg"
-	nts_file="$nts_file.gpg"
+	Archive="$Archive.gpg"
+	NTSFile="$NTSFile.gpg"
 fi
 
 
@@ -201,24 +201,24 @@ then
 fi
 
 
-pwd=`pwd`
+Cwd=`pwd`
 # save file list
-warnx "Generate null-terminated-string list: $nts_file ..."
-cd "$base_dir"
-$sudo find "${obj[@]}" -print0 | save_to "$nts_file"
-cd "$pwd"
+warnx "Generate null-terminated-string list: $NTSFile ..."
+cd "$Basedir"
+$Wrapper find "${Objects[@]}" -print0 | SaveTo "$NTSFile"
+cd "$Cwd"
 
 
 # do the backup
-warnx "Generate archive: $dat_file ..."
+warnx "Generate archive: $Archive ..."
 
 if [ -e increment.snar ]
 then
 	cp -vfa increment.snar increment.snar.old
 fi
-meta_file_saved=1
+MetaFileSaved=yes
 
-$sudo tar c${compflag}f - --force-local -C "$base_dir" "${obj[@]}" -g increment.snar.part "${excludes[@]}" --exclude-tag=.noBackup --exclude-tag=.rcbak.no | save_to "$dat_file"
+$Wrapper tar c${CompressFlag}f - --force-local -C "$Basedir" "${Objects[@]}" -g increment.snar.part "${Excludes[@]}" --exclude-tag=.noBackup --exclude-tag=.rcbak.no | SaveTo "$Archive"
 mv -f increment.snar.part increment.snar
 
 
