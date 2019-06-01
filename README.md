@@ -23,7 +23,7 @@ depending on usage of files and folders.
 However even tar(1) itself is not atomic.
 Consider using filesystem snapshots.
 On every incremental backup it saves `increment.snar` to `increment.snar.old`,
-so you can rollback manually to the previous state after a failed backup process.
+so you can rollback manually to the previous state if you are not setisfied with the results.
 
 # EXAMPLE
 
@@ -78,8 +78,8 @@ Meta file of incremented backup. See tar(1) option `--listed-incremental`.
 
 ## `increment.snar.old`
 
-A copy of `increment.snar` made before overwritten. This makes user able to restore the previous state of backup archives, if something goes wrong.
+A copy of `increment.snar` made before overwritten. This makes user able to restore the previous state of backup archives, if something went wrong.
 
-## `*.fail`
+## `*.part`
 
-Archives, NTS files, and meta file renamed after an unsuccessful call.
+Partial data of archive file, NTS file, and meta file. Renamed after successful operations.
