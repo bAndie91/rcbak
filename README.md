@@ -1,9 +1,11 @@
-# NAME
+rcbak(1) -- Incremental backup mechanism based on tar, configured by dotfiles and supporting gpg-encryption
+=================================
 
-rcbak - Incremental backup mechanism based on tar,
-configured by dotfiles and supporting gpg-encryption
+## SYNOPSIS
 
-# DESCRIPTION
+`rcbak`
+
+## DESCRIPTION
 
 Navigate to a directory containing required `.rcbak.*` files, 
 then call rcbak(1).
@@ -25,61 +27,63 @@ Consider using filesystem snapshots.
 On every incremental backup it saves `increment.snar` to `increment.snar.old`,
 so you can rollback manually to the previous state if you are not setisfied with the results.
 
-# EXAMPLE
+## EXAMPLE
 
-    cd backups/personal
-    echo '~/documents' > .rcbak.ba
-    rcbak
+```
+cd backups/personal
+echo '~/documents' > .rcbak.ba
+rcbak
+```
 
-# FILES
+## FILES
 
-## `.rcbak.ba` (required)
+  * `.rcbak.ba` (required)
 
 Contains base directory of files and folders to be archived.
 Tilde (`~`) substituted to HOME directory.
 
-## `.rcbak.ls`
+  * `.rcbak.ls`
 
 List of files (separated by newline) within the base directory to be archived.
 Default is the whole folder, if `.rcbak.ls` is missing.
 
-## `.rcbak.ex`
+  * `.rcbak.ex`
 
 List of files and patterns (separated by newline) to be excluded from the archive. Patterns are recognized by tar(1), see option `--exclude`.
 
-## `.rcbak.ar`
+  * `.rcbak.ar`
 
 Archiver compressor name. One of these: compress(1), gzip(1), bzip2(1), xz(1).
 
-## `.noBackup`, `.rcbak.no`
+  * `.noBackup`, `.rcbak.no`
 
 Skip entire directory containing such a file. See tar(1) option `--exclude-tag`.
 
-## `.rcbak.su`
+  * `.rcbak.su`
 
 Contains a username in 1st line. Programm reads files in name of this user using sudo(1). Write operations are not done by this user, so archive file created by the user started rcbak.
 
-## `.rcbak.to`
+  * `.rcbak.to`
 
 Encrypt resulting archive for the named GPG user and signed by the default GPG key. See gpg(1) option `--recipient`.
 
-## `.rcbak.pr`
+  * `.rcbak.pr`
 
 Pre- and post-run script, running in the main namespace of rcbak(1), if exists.
 Strings "pre" or "post" passed in "$1".
 
-## `.rcbak.lk`
+  * `.rcbak.lk`
 
 Lock file.
 
-## `increment.snar`
+  * `increment.snar`
 
 Meta file of incremented backup. See tar(1) option `--listed-incremental`.
 
-## `increment.snar.old`
+  * `increment.snar.old`
 
 A copy of `increment.snar` made before overwritten. This makes user able to restore the previous state of backup archives, if something went wrong.
 
-## `*.part`
+  * `*.part`
 
 Partial data of archive file, NTS file, and meta file. Renamed after successful operations.
