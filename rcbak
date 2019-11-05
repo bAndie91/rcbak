@@ -95,7 +95,7 @@ Objects=(.)
 if [ -e .rcbak.ls ]
 then
 	exec {fd}<.rcbak.ls
-	mapfile -u $fd Objects
+	mapfile -t -u $fd Objects
 	unset fd
 fi
 
