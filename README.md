@@ -40,7 +40,7 @@ rcbak
   * `.rcbak.ba` (required)
 
 Contains base directory of files and folders to be archived.
-Tilde (`~`) substituted to HOME directory.
+Tilde-slash (`~/`) substituted to HOME directory.
 
   * `.rcbak.ls`
 
