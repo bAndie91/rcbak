@@ -87,3 +87,6 @@ A copy of `increment.snar` made before overwritten. This makes user able to rest
   * `*.part`
 
 Partial data of archive file, NTS file, and meta file. Renamed after successful operations.
+
+# issues
+Please submit issues via PR to some file `issue/TITLE.txt`.
