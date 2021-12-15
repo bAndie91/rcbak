@@ -104,7 +104,7 @@ if [ -e .rcbak.ex ]
 then
 	declare -a excludes0=()
 	exec {fd}<.rcbak.ex
-	mapfile -u $fd excludes0
+	mapfile -t -u $fd excludes0
 	unset fd
 	
 	for exclude in "${excludes0[@]}"
@@ -205,6 +205,7 @@ Cwd=`pwd`
 # save file list
 warnx "Generate null-terminated-string list: $NTSFile ..."
 cd "$Basedir"
+# NOTE: excludes are actually included in NTS file here
 $Wrapper find "${Objects[@]}" -print0 | SaveTo "$NTSFile"
 cd "$Cwd"
 
